@@ -45,10 +45,22 @@ function loadOptions() {
 
 const options = loadOptions();
 
+// "vehicles" (list of {vin, name}) is the current way to configure cars - Supervisor
+// renders it as add/remove rows in the Configuration tab. Falls back to the older
+// comma-separated "vin" text option (no friendly names) for installs upgraded from
+// before this existed, so nobody has to re-enter their VIN after updating.
+const vehiclesOption = Array.isArray(options.vehicles) ? options.vehicles : [];
+const legacyVins = String(options.vin || '').split(',').map(v => v.trim()).filter(Boolean);
+const vehicles = vehiclesOption.length
+  ? vehiclesOption
+  : legacyVins.map(vin => ({ vin, name: '' }));
+
 const config = {
   clientId: options.client_id || '',
   gcid: options.gcid || '',
-  vins: String(options.vin || '').split(',').map(v => v.trim()).filter(Boolean),
+  vins: vehicles.map(v => v.vin).filter(Boolean),
+  // vin -> friendly name (e.g. "X5"), only for vehicles where a name was given.
+  vehicleNames: new Map(vehicles.filter(v => v.vin && v.name).map(v => [v.vin, v.name])),
   loginEmail: options.login_email || '',
   bmwHost: 'customer.streaming-cardata.bmwgroup.com',
   bmwPort: 9000,
@@ -85,7 +97,7 @@ function getConfigProblems() {
   const missing = [];
   if (!config.clientId) missing.push('client_id (add-on option)');
   if (!config.gcid) missing.push('gcid (add-on option)');
-  if (!config.vins.length) missing.push('vin (add-on option)');
+  if (!config.vins.length) missing.push('vehicles (add at least one vehicle with its VIN, in the add-on\'s Configuration tab)');
   if (!config.localHost) {
     missing.push(
       'MQTT_HOST (no MQTT broker service found via Supervisor auto-discovery, and ' +
@@ -406,7 +418,69 @@ function keyAllowed(key) {
   return true;
 }
 
+// Hand-curated display names for BMW CarData telematic keys (technicalDescriptors).
+// BMW's own descriptions live in the Telematics Data Catalogue, which is only
+// accessible from inside the (authenticated) customer portal - there is no public
+// per-key reference to pull from - so these are best-effort, sensible names based on
+// what each key represents. NOT exhaustive: BMW CarData exposes ~250 possible keys in
+// total; any key not listed here just falls back to auto-formatting its last path
+// segment (e.g. "isRemoteEngineRunning" -> "Is Remote Engine Running"). Add more
+// entries here as you enable additional keys via include_keys / the Web UI.
+const KEY_DISPLAY_NAMES = {
+  // vehicle.body
+  'vehicle.body.hood.isOpen': 'Hood Open',
+  'vehicle.body.trunk.door.isOpen': 'Trunk Door Open',
+  'vehicle.body.trunk.isOpen': 'Trunk Open',
+  'vehicle.body.trunk.lower.door.isOpen': 'Trunk Lower Door Open',
+  'vehicle.body.trunk.upper.door.isOpen': 'Trunk Upper Door Open',
+  // vehicle.cabin
+  'vehicle.cabin.door.row1.driver.isOpen': 'Front Driver Door Open',
+  'vehicle.cabin.door.row1.passenger.isOpen': 'Front Passenger Door Open',
+  'vehicle.cabin.door.row2.driver.isOpen': 'Rear Driver-Side Door Open',
+  'vehicle.cabin.door.row2.passenger.isOpen': 'Rear Passenger-Side Door Open',
+  'vehicle.cabin.door.status': 'Doors Status',
+  'vehicle.cabin.infotainment.navigation.currentLocation.altitude': 'Altitude',
+  'vehicle.cabin.infotainment.navigation.currentLocation.heading': 'Heading',
+  'vehicle.cabin.infotainment.navigation.currentLocation.latitude': 'Latitude',
+  'vehicle.cabin.infotainment.navigation.currentLocation.longitude': 'Longitude',
+  'vehicle.cabin.sunroof.overallStatus': 'Sunroof Overall Status',
+  'vehicle.cabin.sunroof.status': 'Sunroof Status',
+  'vehicle.cabin.sunroof.tiltStatus': 'Sunroof Tilt Status',
+  'vehicle.cabin.window.row1.driver.status': 'Front Driver Window Status',
+  'vehicle.cabin.window.row1.passenger.status': 'Front Passenger Window Status',
+  'vehicle.cabin.window.row2.driver.status': 'Rear Driver-Side Window Status',
+  'vehicle.cabin.window.row2.passenger.status': 'Rear Passenger-Side Window Status',
+  // vehicle.chassis
+  'vehicle.chassis.axle.row1.wheel.left.tire.pressure': 'Front Left Tire Pressure',
+  'vehicle.chassis.axle.row1.wheel.right.tire.pressure': 'Front Right Tire Pressure',
+  'vehicle.chassis.axle.row2.wheel.left.tire.pressure': 'Rear Left Tire Pressure',
+  'vehicle.chassis.axle.row2.wheel.right.tire.pressure': 'Rear Right Tire Pressure',
+  // vehicle.drivetrain
+  'vehicle.drivetrain.avgElectricRangeConsumption': 'Average Electric Consumption',
+  'vehicle.drivetrain.electricEngine.charging.isSingleImmediateCharging': 'Immediate Charging Active',
+  'vehicle.drivetrain.electricEngine.charging.profile.climatizationActive': 'Charging Profile Climatization Active',
+  'vehicle.drivetrain.electricEngine.charging.profile.isRcpConfigComplete': 'Charging Profile Configured',
+  'vehicle.drivetrain.electricEngine.charging.profile.timerType': 'Charging Timer Type',
+  'vehicle.drivetrain.electricEngine.charging.status': 'Charging Status',
+  'vehicle.drivetrain.electricEngine.kombiRemainingElectricRange': 'Remaining Electric Range (Instrument Cluster)',
+  'vehicle.drivetrain.fuelSystem.level': 'Fuel Level',
+  'vehicle.drivetrain.fuelSystem.remainingFuel': 'Remaining Fuel',
+  'vehicle.drivetrain.lastRemainingRange': 'Total Remaining Range',
+  // vehicle.powertrain
+  'vehicle.powertrain.electric.battery.stateOfCharge.target': 'Charging Target (State of Charge)',
+  // vehicle.vehicle
+  'vehicle.vehicle.avgSpeed': 'Average Speed',
+  'vehicle.vehicle.preConditioning.activity': 'Preconditioning Activity',
+  'vehicle.vehicle.preConditioning.error': 'Preconditioning Error',
+  'vehicle.vehicle.preConditioning.isRemoteEngineRunning': 'Remote Engine Running',
+  'vehicle.vehicle.preConditioning.isRemoteEngineStartAllowed': 'Remote Engine Start Allowed',
+  'vehicle.vehicle.preConditioning.remainingTime': 'Preconditioning Remaining Time',
+  'vehicle.vehicle.timeSetting': 'Time Setting',
+  'vehicle.vehicle.travelledDistance': 'Odometer',
+};
+
 function friendlyName(key) {
+  if (KEY_DISPLAY_NAMES[key]) return KEY_DISPLAY_NAMES[key];
   const last = key.split('.').pop();
   return last
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -432,7 +506,9 @@ function publishDiscovery(vin, key, value, stateTopic) {
     value_template: hasValueField ? '{{ value_json.value }}' : '{{ value }}',
     device: {
       identifiers: [`bmw_${sanitizeId(vin)}`],
-      name: `BMW ${vin}`,
+      // Uses the friendly name from the "vehicles" option (e.g. "BMW X5") if one
+      // was given for this VIN, otherwise falls back to the raw VIN.
+      name: config.vehicleNames.get(vin) ? `BMW ${config.vehicleNames.get(vin)}` : `BMW ${vin}`,
       manufacturer: 'BMW',
       model: 'CarData',
     },

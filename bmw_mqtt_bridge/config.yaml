@@ -1,5 +1,5 @@
 name: "BMW CarData MQTT Bridge"
-version: "1.1.3"
+version: "1.1.5"
 slug: "bmw_mqtt_bridge"
 description: "Streams BMW CarData vehicle telemetry into MQTT / HA MQTT Discovery"
 url: "https://github.com/basvb1992/HomeAssistant/tree/main/bmw-mqtt-bridge-addon"
@@ -38,7 +38,11 @@ services:
 options:
   client_id: ""
   gcid: ""
+  # Deprecated: comma-separated VIN list. Kept only so existing installs keep
+  # working after upgrading to "vehicles" below - new setups should use "vehicles"
+  # instead, which also lets you give each car a friendly name (e.g. "X5").
   vin: ""
+  vehicles: []
   login_email: ""
   notify_service: "mobile_app_bas_prive"
   discovery_prefix: "homeassistant"
@@ -58,7 +62,13 @@ schema:
   # not in the recorder/logbook.
   client_id: "password"
   gcid: "password"
-  vin: "str"
+  vin: "str?"
+  # Repeatable list - Supervisor renders this as an add/remove row form in the
+  # Configuration tab ("+ Add"), one row per car. "name" is optional; if left
+  # blank the device shows up in HA as "BMW <vin>" instead of "BMW <name>".
+  vehicles:
+    - vin: "str"
+      name: "str?"
   login_email: "str?"
   notify_service: "str?"
   discovery_prefix: "str"
