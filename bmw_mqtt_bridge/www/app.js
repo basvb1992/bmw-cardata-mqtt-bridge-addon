@@ -105,12 +105,24 @@
       : 'No parameters discovered yet — waiting for BMW telemetry…';
   }
 
+  function renderConfigWarning(problems) {
+    const section = document.getElementById('configWarning');
+    const list = document.getElementById('configProblems');
+    if (!problems || !problems.length) {
+      section.hidden = true;
+      return;
+    }
+    list.innerHTML = problems.map(p => `<li>${p}</li>`).join('');
+    section.hidden = false;
+  }
+
   async function loadState() {
     const state = await fetchJson('api/state');
     discovered = state.keys || [];
     includeSet = state.includeKeys
       ? new Set(state.includeKeys.split(',').map(k => k.trim()).filter(Boolean))
       : null;
+    renderConfigWarning(state.configProblems);
     render();
 
     const notifySel = document.getElementById('notifyService');

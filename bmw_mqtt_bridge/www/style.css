@@ -19,6 +19,13 @@ h1 { margin: 0 0 0.25rem; font-size: 1.4rem; }
   margin-bottom: 1rem;
 }
 .card h2 { margin-top: 0; font-size: 1.05rem; }
+.card.warning {
+  border-color: #e0a30a;
+  background: rgba(224, 163, 10, 0.1);
+}
+.card.warning h2 { color: #b3820a; }
+.card.warning ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+.card.warning li { margin-bottom: 0.3rem; font-size: 0.9rem; }
 .hint { font-size: 0.85rem; opacity: 0.75; }
 select, input[type=search] {
   font-size: 1rem;

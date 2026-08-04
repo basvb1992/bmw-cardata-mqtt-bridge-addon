@@ -16,6 +16,17 @@
   </header>
 
   <main>
+    <section id="configWarning" class="card warning" hidden>
+      <h2>Add-on not fully configured</h2>
+      <p class="hint">
+        The bridge is running, but is not connecting to BMW/MQTT yet because of the following
+        missing configuration. Fill these in via
+        <strong>Settings &rarr; Add-ons &rarr; BMW CarData MQTT Bridge &rarr; Configuration</strong>,
+        then save and restart the add-on.
+      </p>
+      <ul id="configProblems"></ul>
+    </section>
+
     <section class="card">
       <h2>Login notification device</h2>
       <p class="hint">Pick the <code>notify.*</code> service that should receive the BMW login link.</p>

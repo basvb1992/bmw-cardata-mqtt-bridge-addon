@@ -112,8 +112,9 @@ function supervisorRequest(supervisorToken, method, urlPath, bodyObj) {
  * @param {number} opts.port - port to listen on (must match config.yaml ingress_port)
  * @param {object} opts.config - the bridge's parsed config (needs supervisorToken, notifyService, includeKeys)
  * @param {() => Array<{key:string, unit?:string, sample?:any, lastSeen:string}>} opts.getDiscovered
+ * @param {() => string[]} [opts.getConfigProblems] - returns human-readable missing-config messages (empty = OK)
  */
-function startServer({ port, config, getDiscovered }) {
+function startServer({ port, config, getDiscovered, getConfigProblems }) {
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost');
@@ -124,6 +125,7 @@ function startServer({ port, config, getDiscovered }) {
           keys: getDiscovered(),
           includeKeys: config.includeKeys.join(','),
           notifyService: config.notifyService || '',
+          configProblems: getConfigProblems ? getConfigProblems() : [],
         });
       }
 
