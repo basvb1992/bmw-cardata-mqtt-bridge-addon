@@ -1,0 +1,8 @@
+{
+  "name": "bmw-mqtt-bridge-addon",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "mqtt": "^5.10.0"
+  }
+}

@@ -1,0 +1,48 @@
+name: "BMW CarData MQTT Bridge"
+version: "1.0.0"
+slug: "bmw_mqtt_bridge"
+description: "Streams BMW CarData vehicle telemetry into MQTT / HA MQTT Discovery"
+url: "https://github.com/basvb1992/bmw-cardata-mqtt-bridge-addon"
+# Only the two most common HAOS host architectures are enabled by default.
+# Add armv7/armhf/i386 here too if your host needs them (the public node:20-alpine
+# image is multi-arch, so this is just a matter of listing them).
+arch:
+  - aarch64
+  - amd64
+init: false
+startup: application
+boot: auto
+# Grants a short-lived SUPERVISOR_TOKEN (env var) for calling Home Assistant's
+# Core API (used here only to send the one-time BMW login link via notify.*).
+# Supervisor rotates this token itself - nothing to manage or store.
+homeassistant_api: true
+# Auto-discovers your MQTT broker (the Mosquitto add-on) and injects
+# MQTT_HOST / MQTT_PORT / MQTT_USERNAME / MQTT_PASSWORD / MQTT_SSL as env vars.
+# No broker address/credentials need to be entered anywhere.
+services:
+  - mqtt:want
+options:
+  client_id: ""
+  gcid: ""
+  vin: ""
+  login_email: ""
+  notify_service: ""
+  discovery_prefix: "homeassistant"
+  local_prefix: "bmw/"
+  mqtt_discovery: true
+  split_topics: false
+  mqtt_retain: false
+schema:
+  # "password" fields are masked in the Supervisor UI and stored in the add-on's
+  # own options store on the HA host (root-only file), not in .env, not in git,
+  # not in the recorder/logbook.
+  client_id: "password"
+  gcid: "password"
+  vin: "str"
+  login_email: "email?"
+  notify_service: "str"
+  discovery_prefix: "str"
+  local_prefix: "str"
+  mqtt_discovery: "bool"
+  split_topics: "bool"
+  mqtt_retain: "bool"
