@@ -8,9 +8,11 @@
  *    (Settings > Add-ons > BMW CarData MQTT Bridge > Configuration). Fields
  *    marked "password" in config.yaml's schema are masked in the UI and
  *    stored by Supervisor on the HA host - never in this repo, never in .env.
- *  - The local MQTT broker connection (host/port/user/password) is
+ *  - The local MQTT broker connection (host/port/user/password) is normally
  *    auto-injected by Supervisor via `services: [mqtt:want]` in config.yaml -
- *    no broker address ever needs to be entered.
+ *    no broker address needs to be entered - but can be overridden manually
+ *    via the mqtt_host/mqtt_port/mqtt_username/mqtt_password/mqtt_ssl options
+ *    if your broker add-on doesn't register itself with Supervisor.
  *  - The one-time BMW login link is sent via Home Assistant's notify service
  *    using the Supervisor-issued SUPERVISOR_TOKEN (from `homeassistant_api:
  *    true`), calling Core's API through the Supervisor proxy at
@@ -49,12 +51,14 @@ const config = {
   bmwPort: 9000,
   tokenHost: 'customer.bmwgroup.com',
   scope: 'authenticate_user openid cardata:streaming:read',
-  // Auto-injected by Supervisor because config.yaml declares `services: [mqtt:want]`.
-  localHost: process.env.MQTT_HOST || '',
-  localPort: parseInt(process.env.MQTT_PORT || '1883', 10),
-  localUser: process.env.MQTT_USERNAME || '',
-  localPassword: process.env.MQTT_PASSWORD || '',
-  localSsl: process.env.MQTT_SSL === 'true',
+  // Manual override (mqtt_host set) takes priority over Supervisor's `services:
+  // [mqtt:want]` auto-discovery, which is used only as a fallback below. This
+  // covers brokers/add-ons that don't register the "mqtt" service with Supervisor.
+  localHost: options.mqtt_host || process.env.MQTT_HOST || '',
+  localPort: parseInt(options.mqtt_port || process.env.MQTT_PORT || '1883', 10),
+  localUser: options.mqtt_username || process.env.MQTT_USERNAME || '',
+  localPassword: options.mqtt_password || process.env.MQTT_PASSWORD || '',
+  localSsl: options.mqtt_host ? !!options.mqtt_ssl : process.env.MQTT_SSL === 'true',
   localPrefix: options.local_prefix || 'bmw/',
   splitTopics: !!options.split_topics,
   retain: !!options.mqtt_retain,
@@ -78,8 +82,10 @@ function assertConfig() {
   if (!config.notifyService) missing.push('notify_service (add-on option, e.g. "mobile_app_yourphone")');
   if (!config.localHost) {
     missing.push(
-      'MQTT_HOST (no MQTT broker service found - install/start the Mosquitto broker ' +
-        'add-on so Supervisor can auto-wire this add-on to it)'
+      'MQTT_HOST (no MQTT broker service found via Supervisor auto-discovery, and ' +
+        'mqtt_host add-on option is empty - either restart the Mosquitto broker add-on ' +
+        'so it re-registers with Supervisor, or fill in mqtt_host/mqtt_port/mqtt_username/' +
+        'mqtt_password manually in this add-on\'s Configuration tab)'
     );
   }
   if (!config.supervisorToken) missing.push('SUPERVISOR_TOKEN (homeassistant_api not granted?)');

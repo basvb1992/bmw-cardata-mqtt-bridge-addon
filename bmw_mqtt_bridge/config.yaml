@@ -1,5 +1,5 @@
 name: "BMW CarData MQTT Bridge"
-version: "1.0.1"
+version: "1.0.2"
 slug: "bmw_mqtt_bridge"
 description: "Streams BMW CarData vehicle telemetry into MQTT / HA MQTT Discovery"
 url: "https://github.com/basvb1992/bmw-cardata-mqtt-bridge-addon"
@@ -18,7 +18,12 @@ boot: auto
 homeassistant_api: true
 # Auto-discovers your MQTT broker (the Mosquitto add-on) and injects
 # MQTT_HOST / MQTT_PORT / MQTT_USERNAME / MQTT_PASSWORD / MQTT_SSL as env vars.
-# No broker address/credentials need to be entered anywhere.
+# This only works if the broker add-on actually registers itself as the "mqtt"
+# service with Supervisor (the official "Mosquitto broker" add-on does, but a
+# restart of that add-on is sometimes needed for it to (re-)register). If this
+# add-on still reports "no MQTT broker service found" even though your broker
+# is running, fill in mqtt_host/mqtt_port/mqtt_username/mqtt_password manually
+# below to bypass auto-discovery entirely.
 services:
   - mqtt:want
 options:
@@ -34,6 +39,11 @@ options:
   mqtt_retain: false
   include_keys: ""
   exclude_keys: ""
+  mqtt_host: ""
+  mqtt_port: 0
+  mqtt_username: ""
+  mqtt_password: ""
+  mqtt_ssl: false
 schema:
   # "password" fields are masked in the Supervisor UI and stored in the add-on's
   # own options store on the HA host (root-only file), not in .env, not in git,
@@ -41,7 +51,7 @@ schema:
   client_id: "password"
   gcid: "password"
   vin: "str"
-  login_email: "email?"
+  login_email: "str?"
   notify_service: "str"
   discovery_prefix: "str"
   local_prefix: "str"
@@ -50,3 +60,10 @@ schema:
   mqtt_retain: "bool"
   include_keys: "str"
   exclude_keys: "str"
+  # Manual MQTT override - only needed if service auto-discovery (above) fails.
+  # Leave mqtt_host empty (default) to keep using Supervisor auto-discovery.
+  mqtt_host: "str?"
+  mqtt_port: "port?"
+  mqtt_username: "str?"
+  mqtt_password: "password?"
+  mqtt_ssl: "bool?"

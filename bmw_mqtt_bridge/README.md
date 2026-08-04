@@ -6,7 +6,7 @@ add-on.
 | Concern | Standalone script + `.env` | This add-on |
 |---|---|---|
 | `client_id` / GCID storage | Plaintext in `.env` on whatever machine runs it | Masked (`password` schema) add-on option, stored by Supervisor on the HA host |
-| MQTT broker credentials | Manually entered in `.env` | Auto-injected by Supervisor (`services: [mqtt:want]`) — never entered anywhere |
+| MQTT broker credentials | Manually entered in `.env` | Auto-injected by Supervisor (`services: [mqtt:want]`), with manual override available — never hardcoded |
 | HA API access (login notification) | Manually-created long-lived access token | Short-lived `SUPERVISOR_TOKEN`, auto-issued and rotated by Supervisor |
 | Uptime | Only while some external machine happens to be on and the script running | Runs continuously, managed by Supervisor, restarts with HA |
 
@@ -26,6 +26,24 @@ add-on.
 | `mqtt_retain` | No | Retain published MQTT messages, default `false`. |
 | `include_keys` | No | Comma-separated telemetry key whitelist (see below). Empty = include everything. |
 | `exclude_keys` | No | Comma-separated telemetry key blacklist (see below). Always wins over `include_keys`. |
+| `mqtt_host` / `mqtt_port` / `mqtt_username` / `mqtt_password` / `mqtt_ssl` | No | Manual MQTT broker override (see below). Leave `mqtt_host` empty to use Supervisor auto-discovery. |
+
+## "MQTT_HOST" error even though your broker is running
+
+`services: [mqtt:want]` only auto-wires the broker connection if the broker add-on has
+actively **registered** itself as the "mqtt" service with Supervisor — the official
+**Mosquitto broker** add-on does this, but only on (re)start, and only while it's actually
+running. If you still get a missing `MQTT_HOST` error with your broker showing as started:
+
+1. Restart the **Mosquitto broker** add-on first, then restart **this** add-on —
+   Supervisor only injects `MQTT_HOST`/etc. at container start, so the bridge needs to
+   (re)start *after* the broker has re-registered.
+2. Confirm Settings → Devices & Services shows an **MQTT** integration — if that's
+   missing too, the broker isn't registering properly with Supervisor/Core.
+3. If it still doesn't pick up automatically, bypass auto-discovery entirely by filling in
+   `mqtt_host` (e.g. `core-mosquitto` or your broker's hostname/IP), `mqtt_port` (default
+   `1883`), and `mqtt_username`/`mqtt_password`/`mqtt_ssl` if required, in the
+   Configuration tab. Any non-empty `mqtt_host` always takes priority over auto-discovery.
 
 ## Filtering telemetry (`include_keys` / `exclude_keys`)
 
