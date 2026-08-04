@@ -1,5 +1,5 @@
 name: "BMW CarData MQTT Bridge"
-version: "1.0.0"
+version: "1.0.1"
 slug: "bmw_mqtt_bridge"
 description: "Streams BMW CarData vehicle telemetry into MQTT / HA MQTT Discovery"
 url: "https://github.com/basvb1992/bmw-cardata-mqtt-bridge-addon"
