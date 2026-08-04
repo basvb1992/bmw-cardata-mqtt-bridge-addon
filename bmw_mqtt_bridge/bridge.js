@@ -475,13 +475,26 @@ function publishLocal(vin, payload) {
 function connectLocalBroker() {
   const protocol = config.localSsl ? 'mqtts' : 'mqtt';
   const url = `${protocol}://${config.localHost}:${config.localPort}`;
+  // Log exactly what we're about to try before the (possibly slow-to-fail)
+  // connection attempt starts, so a "connack timeout" or similar silent
+  // failure can still be diagnosed from these logs alone (auto-discovered
+  // host/port/credentials are otherwise invisible - never logged elsewhere).
+  log(
+    `Connecting to local broker ${url}` +
+      ` (auth: ${config.localUser ? `user "${config.localUser}"` : 'none/anonymous'},` +
+      ` source: ${options.mqtt_host ? 'manual mqtt_host option' : 'Supervisor mqtt:want auto-discovery'})`
+  );
   localClient = mqtt.connect(url, {
     username: config.localUser || undefined,
     password: config.localPassword || undefined,
     clientId: 'bmw-mqtt-bridge-addon',
+    connectTimeout: 30000,
   });
   localClient.on('connect', () => log('Connected to local broker', url));
   localClient.on('error', err => log('Local broker error:', err.message));
+  localClient.on('reconnect', () => log('Local broker: reconnecting...'));
+  localClient.on('close', () => log('Local broker: connection closed'));
+  localClient.on('offline', () => log('Local broker: offline (not connected)'));
 }
 
 function connectBmwBroker(state) {
