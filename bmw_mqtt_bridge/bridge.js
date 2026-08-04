@@ -27,9 +27,12 @@ const https = require('https');
 const crypto = require('crypto');
 const fs = require('fs');
 const mqtt = require('mqtt');
+const { startServer } = require('./server');
 
 const OPTIONS_FILE = '/data/options.json';
 const STATE_FILE = '/data/bmw-bridge-state.json';
+const DISCOVERED_FILE = '/data/discovered-keys.json';
+const WEB_UI_PORT = 8099; // must match config.yaml's ingress_port
 
 function loadOptions() {
   try {
@@ -79,7 +82,6 @@ function assertConfig() {
   if (!config.clientId) missing.push('client_id (add-on option)');
   if (!config.gcid) missing.push('gcid (add-on option)');
   if (!config.vins.length) missing.push('vin (add-on option)');
-  if (!config.notifyService) missing.push('notify_service (add-on option, e.g. "mobile_app_yourphone")');
   if (!config.localHost) {
     missing.push(
       'MQTT_HOST (no MQTT broker service found via Supervisor auto-discovery, and ' +
@@ -93,6 +95,59 @@ function assertConfig() {
     console.error('Missing required configuration: ' + missing.join(', '));
     process.exit(1);
   }
+  if (!config.notifyService) {
+    log(
+      'Note: notify_service is not set - the BMW login link will only appear in this Log, ' +
+        'not as a push notification. Set it via this add-on\'s Web UI (or the Configuration tab).'
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry key discovery (feeds the Web UI's checkbox list)
+// ---------------------------------------------------------------------------
+
+function loadDiscoveredKeys() {
+  try {
+    return new Map(Object.entries(JSON.parse(fs.readFileSync(DISCOVERED_FILE, 'utf8'))));
+  } catch (e) {
+    return new Map();
+  }
+}
+
+// key -> { unit, sample, lastSeen }. Recorded for EVERY key BMW ever sends,
+// regardless of include_keys/exclude_keys filtering, so the Web UI can show
+// (and let the user re-enable) parameters that are currently excluded.
+const discoveredKeyInfo = loadDiscoveredKeys();
+let discoveredKeyInfoDirty = false;
+
+function recordDiscoveredKey(key, value) {
+  const isObj = value && typeof value === 'object';
+  const unit = isObj && 'unit' in value ? value.unit : undefined;
+  const sample = isObj && 'value' in value ? value.value : value;
+  const existing = discoveredKeyInfo.get(key);
+  discoveredKeyInfo.set(key, {
+    unit: unit !== undefined ? unit : existing && existing.unit,
+    sample,
+    lastSeen: new Date().toISOString(),
+  });
+  discoveredKeyInfoDirty = true;
+}
+
+function flushDiscoveredKeys() {
+  if (!discoveredKeyInfoDirty) return;
+  discoveredKeyInfoDirty = false;
+  try {
+    fs.writeFileSync(DISCOVERED_FILE, JSON.stringify(Object.fromEntries(discoveredKeyInfo), null, 2));
+  } catch (e) {
+    log('Could not persist discovered-keys.json:', e.message);
+  }
+}
+
+setInterval(flushDiscoveredKeys, 15000);
+
+function getDiscoveredKeyList() {
+  return Array.from(discoveredKeyInfo.entries()).map(([key, info]) => ({ key, ...info }));
 }
 
 function log(...args) {
@@ -212,18 +267,22 @@ async function startDeviceCodeFlow() {
 
   const loginUrl = device.verification_uri_complete || `${device.verification_uri}?user_code=${device.user_code}`;
   const expiresMin = Math.floor((device.expires_in || 600) / 60);
-  log('BMW login required. Sending link via HA notify.' + config.notifyService);
-  await haNotify(
-    'BMW CarData: login required',
-    `Tap this notification to open the BMW login page (valid ${expiresMin} min).\n` +
-      `If prompted for a code, enter: ${device.user_code}`,
-    {
-      url: loginUrl,
-      clickAction: loginUrl,
-      actions: [{ action: 'URI', title: 'Copy code', uri: `clipboard://${device.user_code}` }],
-    }
-  );
-  log('Verification link sent. Waiting for you to complete login...');
+  if (config.notifyService) {
+    log('BMW login required. Sending link via HA notify.' + config.notifyService);
+    await haNotify(
+      'BMW CarData: login required',
+      `Tap this notification to open the BMW login page (valid ${expiresMin} min).\n` +
+        `If prompted for a code, enter: ${device.user_code}`,
+      {
+        url: loginUrl,
+        clickAction: loginUrl,
+        actions: [{ action: 'URI', title: 'Copy code', uri: `clipboard://${device.user_code}` }],
+      }
+    );
+    log('Verification link sent. Waiting for you to complete login...');
+  } else {
+    log('BMW login required. Set notify_service (Web UI or Configuration tab) to get this as a push notification.');
+  }
   log(loginUrl);
   log('If prompted for a code on the BMW page, enter:', device.user_code);
 
@@ -249,7 +308,9 @@ async function startDeviceCodeFlow() {
       };
       saveState(state);
       log('BMW login successful. Tokens saved to', STATE_FILE);
-      await haNotify('BMW CarData', 'Login successful, bridge is starting.');
+      if (config.notifyService) {
+        await haNotify('BMW CarData', 'Login successful, bridge is starting.');
+      }
       return state;
     }
 
@@ -442,6 +503,11 @@ function connectBmwBroker(state) {
     const vin = topic.split('/').pop();
     try {
       const payload = JSON.parse(message.toString());
+      if (payload && typeof payload.data === 'object') {
+        for (const [key, value] of Object.entries(payload.data)) {
+          recordDiscoveredKey(key, value);
+        }
+      }
       publishLocal(vin, payload);
     } catch (e) {
       log('Failed to parse BMW message on', topic, e.message);
@@ -470,6 +536,7 @@ async function scheduleRefresh(state) {
 
 async function main() {
   assertConfig();
+  startServer({ port: WEB_UI_PORT, config, getDiscovered: getDiscoveredKeyList });
   const state = await ensureAuthenticated();
   connectLocalBroker();
   connectBmwBroker(state);

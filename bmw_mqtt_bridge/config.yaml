@@ -1,5 +1,5 @@
 name: "BMW CarData MQTT Bridge"
-version: "1.0.2"
+version: "1.1.0"
 slug: "bmw_mqtt_bridge"
 description: "Streams BMW CarData vehicle telemetry into MQTT / HA MQTT Discovery"
 url: "https://github.com/basvb1992/bmw-cardata-mqtt-bridge-addon"
@@ -13,9 +13,18 @@ init: false
 startup: application
 boot: auto
 # Grants a short-lived SUPERVISOR_TOKEN (env var) for calling Home Assistant's
-# Core API (used here only to send the one-time BMW login link via notify.*).
-# Supervisor rotates this token itself - nothing to manage or store.
+# Core API (used to send the one-time BMW login link via notify.*, list notify.*
+# services for the Web UI dropdown, and to save options / restart itself from
+# the Web UI via the Supervisor's /addons/self/* endpoints - callable with just
+# this scope, no extra hassio_api permission needed).
 homeassistant_api: true
+# Serves a small configuration Web UI (pick which of the ~250 BMW telemetry
+# parameters to publish, and which notify.* device gets the login link) via
+# Supervisor Ingress - no exposed ports, only reachable through the HA UI's
+# "OPEN WEB UI" button by an already-authenticated user.
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:car-electric
 # Auto-discovers your MQTT broker (the Mosquitto add-on) and injects
 # MQTT_HOST / MQTT_PORT / MQTT_USERNAME / MQTT_PASSWORD / MQTT_SSL as env vars.
 # This only works if the broker add-on actually registers itself as the "mqtt"
@@ -52,7 +61,7 @@ schema:
   gcid: "password"
   vin: "str"
   login_email: "str?"
-  notify_service: "str"
+  notify_service: "str?"
   discovery_prefix: "str"
   local_prefix: "str"
   mqtt_discovery: "bool"
