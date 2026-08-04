@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BMW CarData MQTT Bridge</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>BMW CarData MQTT Bridge</h1>
+    <p class="subtitle">
+      Choose which telemetry parameters get published to MQTT, and which device receives the
+      one-time BMW login link.
+    </p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Login notification device</h2>
+      <p class="hint">Pick the <code>notify.*</code> service that should receive the BMW login link.</p>
+      <select id="notifyService"><option value="">Loading…</option></select>
+    </section>
+
+    <section class="card">
+      <h2>Telemetry parameters</h2>
+      <p class="hint">
+        Parameters appear below automatically as your car sends them (BMW streams up to ~250,
+        grouped by category). If one you expect is missing, drive around a bit and check back
+        &mdash; this list updates live, no restart needed to see new parameters. Unchecked
+        parameters are simply not published to MQTT / discovered in Home Assistant.
+      </p>
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Filter parameters…" />
+        <button id="selectAll" type="button">Select all</button>
+        <button id="selectNone" type="button">Select none</button>
+        <span id="count" class="count"></span>
+      </div>
+      <div id="groups"></div>
+    </section>
+
+    <div class="save-bar">
+      <button id="save" type="button" class="primary">Save &amp; restart add-on</button>
+      <span id="status"></span>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
