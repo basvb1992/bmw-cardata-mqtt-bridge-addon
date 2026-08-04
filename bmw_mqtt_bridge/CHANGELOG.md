@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.6
+
+- Added diagnostic logging for the BMW CarData MQTT broker connection
+  (reconnect/close/offline/disconnect events, and the actual scheduled
+  token-refresh interval + token expiry timestamp), to determine whether
+  the observed ~70s reconnect cycle is caused by an overly aggressive
+  refresh schedule or a genuine upstream connection drop. No behavior
+  change otherwise.
+
 ## 1.1.5
 
 - Added hand-curated friendly display names for the ~44 currently-known BMW

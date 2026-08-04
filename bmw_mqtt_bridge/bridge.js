@@ -588,7 +588,8 @@ function connectBmwBroker(state) {
   });
 
   bmwClient.on('connect', () => {
-    log('Connected to BMW CarData MQTT broker');
+    const msLeft = state.expires_at - Date.now();
+    log(`Connected to BMW CarData MQTT broker (token expires in ${Math.round(msLeft / 1000)}s)`);
     for (const vin of config.vins) {
       const topic = `${config.gcid}/${vin}`;
       bmwClient.subscribe(topic, err => {
@@ -597,6 +598,10 @@ function connectBmwBroker(state) {
       });
     }
   });
+  bmwClient.on('reconnect', () => log('BMW broker: reconnecting...'));
+  bmwClient.on('close', () => log('BMW broker: connection closed'));
+  bmwClient.on('offline', () => log('BMW broker: offline (not connected)'));
+  bmwClient.on('disconnect', packet => log('BMW broker: server sent DISCONNECT', JSON.stringify(packet && packet.properties)));
 
   bmwClient.on('message', (topic, message) => {
     const vin = topic.split('/').pop();
@@ -619,6 +624,10 @@ function connectBmwBroker(state) {
 async function scheduleRefresh(state) {
   if (refreshTimer) clearTimeout(refreshTimer);
   const refreshInMs = Math.max(state.expires_at - Date.now() - 5 * 60 * 1000, 30 * 1000);
+  log(
+    `Token refresh scheduled in ${Math.round(refreshInMs / 1000)}s` +
+      ` (expires_at=${new Date(state.expires_at).toISOString()}, now=${new Date().toISOString()})`
+  );
   refreshTimer = setTimeout(async () => {
     try {
       const newState = await refreshTokens(state);
