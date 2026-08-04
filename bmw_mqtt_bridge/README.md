@@ -24,6 +24,29 @@ add-on.
 | `mqtt_discovery` | No | Enable Home Assistant MQTT Discovery, default `true`. |
 | `split_topics` | No | Publish each telemetry key to its own sub-topic, default `false`. |
 | `mqtt_retain` | No | Retain published MQTT messages, default `false`. |
+| `include_keys` | No | Comma-separated telemetry key whitelist (see below). Empty = include everything. |
+| `exclude_keys` | No | Comma-separated telemetry key blacklist (see below). Always wins over `include_keys`. |
+
+## Filtering telemetry (`include_keys` / `exclude_keys`)
+
+By default BMW streams every telemetry key your CarData client is authorized for, and the
+bridge publishes/discovers all of them. If you only care about a subset (e.g. just battery
+and doors), you can filter which keys get published to MQTT — this also reduces the number
+of entities Home Assistant discovers.
+
+Both options take a **comma-separated list of dotted key patterns**, matched against the
+telemetry key names BMW sends (e.g. `vehicle.drivetrain.batteryManagement.socBms`). A
+trailing `*` matches by prefix.
+
+- `include_keys` — whitelist. If set, **only** matching keys are published; everything
+  else is dropped. Leave empty to include everything.
+- `exclude_keys` — blacklist. Matching keys are always dropped, even if they also match
+  `include_keys`. Applied after `include_keys`.
+
+Examples:
+- `include_keys: "vehicle.drivetrain.*,vehicle.doorsGeneralState"` → only drivetrain
+  telemetry plus the doors state.
+- `exclude_keys: "vehicle.cabin.*"` → publish everything except cabin sensors.
 
 ## Setup
 

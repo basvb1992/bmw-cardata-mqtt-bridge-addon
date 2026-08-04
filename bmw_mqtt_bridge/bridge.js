@@ -61,6 +61,11 @@ const config = {
   discovery: options.mqtt_discovery !== false,
   discoveryPrefix: options.discovery_prefix || 'homeassistant',
   notifyService: options.notify_service || '',
+  // Comma-separated key patterns (dotted paths, e.g. "vehicle.drivetrain.batteryManagement.socBms").
+  // A trailing "*" matches by prefix, e.g. "vehicle.drivetrain.*". Empty include_keys means
+  // "everything is included"; exclude_keys always wins over include_keys.
+  includeKeys: String(options.include_keys || '').split(',').map(k => k.trim()).filter(Boolean),
+  excludeKeys: String(options.exclude_keys || '').split(',').map(k => k.trim()).filter(Boolean),
   // Auto-injected by Supervisor because config.yaml declares `homeassistant_api: true`.
   supervisorToken: process.env.SUPERVISOR_TOKEN || '',
 };
@@ -304,6 +309,26 @@ function sanitizeId(str) {
   return String(str).replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
+// Matches `key` against a pattern; a trailing "*" means "starts with".
+function matchesPattern(key, pattern) {
+  if (pattern.endsWith('*')) {
+    return key.startsWith(pattern.slice(0, -1));
+  }
+  return key === pattern;
+}
+
+// Whitelist (include_keys) is applied first if non-empty, then blacklist
+// (exclude_keys) is applied on top and always wins.
+function keyAllowed(key) {
+  if (config.includeKeys.length && !config.includeKeys.some(p => matchesPattern(key, p))) {
+    return false;
+  }
+  if (config.excludeKeys.some(p => matchesPattern(key, p))) {
+    return false;
+  }
+  return true;
+}
+
 function friendlyName(key) {
   const last = key.split('.').pop();
   return last
@@ -346,10 +371,21 @@ function publishDiscovery(vin, key, value, stateTopic) {
 function publishLocal(vin, payload) {
   const baseTopic = `${config.localPrefix}${vin}`;
   const opts = { retain: config.retain };
-  localClient.publish(baseTopic, JSON.stringify(payload), opts);
 
-  if ((config.splitTopics || config.discovery) && payload && typeof payload.data === 'object') {
-    for (const [key, value] of Object.entries(payload.data)) {
+  // Apply include_keys/exclude_keys filtering to payload.data before publishing
+  // anything, so excluded parameters never reach MQTT (base topic included).
+  let outgoing = payload;
+  if (payload && typeof payload.data === 'object') {
+    const filteredEntries = Object.entries(payload.data).filter(([key]) => keyAllowed(key));
+    if (filteredEntries.length !== Object.keys(payload.data).length) {
+      outgoing = { ...payload, data: Object.fromEntries(filteredEntries) };
+    }
+  }
+
+  localClient.publish(baseTopic, JSON.stringify(outgoing), opts);
+
+  if ((config.splitTopics || config.discovery) && outgoing && typeof outgoing.data === 'object') {
+    for (const [key, value] of Object.entries(outgoing.data)) {
       const keyTopic = `${baseTopic}/${key}`;
       localClient.publish(keyTopic, JSON.stringify(value), opts);
       if (config.discovery) {

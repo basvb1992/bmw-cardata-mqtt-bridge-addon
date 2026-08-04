@@ -32,6 +32,8 @@ options:
   mqtt_discovery: true
   split_topics: false
   mqtt_retain: false
+  include_keys: ""
+  exclude_keys: ""
 schema:
   # "password" fields are masked in the Supervisor UI and stored in the add-on's
   # own options store on the HA host (root-only file), not in .env, not in git,
@@ -46,3 +48,5 @@ schema:
   mqtt_discovery: "bool"
   split_topics: "bool"
   mqtt_retain: "bool"
+  include_keys: "str"
+  exclude_keys: "str"
